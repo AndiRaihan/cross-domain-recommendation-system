@@ -1,0 +1,20 @@
+# Core libraries
+numpy
+pandas
+scikit-learn
+
+# Deep Learning Framework (choose one and uncomment)
+# tensorflow
+# torch
+
+# Visualization
+matplotlib
+seaborn
+
+# Jupyter
+jupyter
+notebook
+
+# Optional: For specific models or techniques
+# surprise (for collaborative filtering)
+# networkx (for graph-based models)
