@@ -8,11 +8,11 @@ import pandas as pd
 
 # Try importing UMAP
 try:
-    import umap
-    REDUCER = 'UMAP'
-except ImportError:
     from sklearn.manifold import TSNE
     REDUCER = 'TSNE'
+except ImportError:
+    import umap
+    REDUCER = 'UMAP'
 
 # Adjust imports
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
@@ -22,9 +22,13 @@ from src.models.ptupcdr import PTUPCDR
 # CONFIG
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data", "processed")
+RAW_DIR = os.path.join(BASE_DIR, "data", "raw")
 MODEL_DIR = os.path.join(BASE_DIR, "reports", "ptupcdr_model")
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 EMBED_DIM = 64
+
+META_SOURCE_FILE = "meta_Movies_and_TV.jsonl"
+META_TARGET_FILE = "meta_CDs_and_Vinyl.jsonl"
 
 def load_models():
     with open(os.path.join(DATA_DIR, 'user_mapping.json')) as f: num_users = len(json.load(f)) + 1
@@ -47,6 +51,46 @@ def load_models():
     mapper.eval()
     
     return model_t, mapper
+
+def get_product_titles(asin_list, meta_filename):
+    """
+    Scans the raw metadata file to find Titles for the given ASINs.
+    """
+    path = os.path.join(RAW_DIR, meta_filename)
+    if not os.path.exists(path):
+        print(f"Warning: Metadata file {path} not found. Returning ASINs only.")
+        return {asin: "Unknown Title" for asin in asin_list}
+
+    print(f"   Scanning {meta_filename} for {len(asin_list)} titles...")
+    
+    # Convert list to set for O(1) lookup
+    target_asins = set(asin_list)
+    title_map = {}
+    
+    # Stream file to save memory
+    chunk_size = 100_000
+    try:
+        with pd.read_json(path, lines=True, chunksize=chunk_size) as reader:
+            for chunk in reader:
+                # Normalize ID column
+                id_col = 'parent_asin' if 'parent_asin' in chunk.columns else 'asin'
+                
+                # Filter rows that match our ASINs
+                mask = chunk[id_col].isin(target_asins)
+                found_rows = chunk[mask]
+                
+                for _, row in found_rows.iterrows():
+                    asin = row[id_col]
+                    title = row.get('title', 'No Title')
+                    title_map[asin] = title
+                    
+                # Optimization: Stop early if we found everything
+                if len(title_map) == len(target_asins):
+                    break
+    except ValueError:
+        print("   Warning: JSON structure error or file empty.")
+
+    return title_map
 
 def viz_latent_space():
     """Viz 3: UMAP Source vs Target vs Mapped"""
@@ -98,7 +142,7 @@ def viz_latent_space():
     if REDUCER == 'UMAP':
         reducer = umap.UMAP(random_state=42)
     else:
-        reducer = TSNE(n_components=2, random_state=42, init='pca', learning_rate='auto')
+        reducer = TSNE(n_components=2, random_state=42, perplexity=50, early_exaggeration=25, init='pca', metric="cosine", learning_rate='auto')
         
     embedding = reducer.fit_transform(X)
     
@@ -125,116 +169,166 @@ def viz_latent_space():
     print(f"Saved Viz 3 to {out_path}")
 
 def generate_case_study():
-    """Viz 4: Extract a User Case Study"""
-    print("Generating Case Study...")
+    """Viz 4: Extract a 'Success' User Case Study"""
+    print("Generating Case Study (Searching for a Hit)...")
     
-    # 1. Load Mappings (CORRECTED LOGIC)
-    # JSON keys are always strings "1". We need to convert them to int 1.
-    # We want: {1: "UserID_String"}
-    
+    # 1. Load Data & Mappings
     with open(os.path.join(DATA_DIR, 'user_mapping.json')) as f: 
         user_map = {int(k): v for k, v in json.load(f).items()}
-        
     with open(os.path.join(DATA_DIR, 'source_item_mapping.json')) as f:
         src_item_map = {int(k): v for k, v in json.load(f).items()}
-        
     with open(os.path.join(DATA_DIR, 'target_item_mapping.json')) as f:
         tgt_item_map = {int(k): v for k, v in json.load(f).items()}
         
     df_src = pd.read_csv(os.path.join(DATA_DIR, 'source_train.csv'))
     df_tgt = pd.read_csv(os.path.join(DATA_DIR, 'target_test.csv'))
-    
-    # Find candidate
+    user_content = np.load(os.path.join(DATA_DIR, 'source_user_content.npy'))
+
+    # 2. Load Model ONCE (Before loop)
+    print("Loading models for search...")
+    model_t, mapper = load_models()
+    # Ensure evaluation mode
+    model_t.eval()
+    mapper.eval()
+    all_items_emb = model_t.item_embedding.weight
+
+    # 3. Search for a "Success" Candidate
     test_users = df_tgt['user_id_idx'].unique()
     candidate = None
+    candidate_rank = -1
     
-    # Try to find a user with rich history
-    for u in test_users:
-        src_hist = df_src[df_src['user_id_idx'] == u]
-        tgt_hist = df_tgt[df_tgt['user_id_idx'] == u]
-        
-        # Condition: >5 Source items (to show taste) and >=1 Target (to show truth)
-        if len(src_hist) >= 5 and len(tgt_hist) >= 1:
-            candidate = u
-            break
+    # Check up to 100 users to find a good match (usually finds one instantly)
+    search_limit = 200 
+    checked = 0
     
-    # Fallback: If no "rich" user found, just pick the first one
-    if candidate is None and len(test_users) > 0:
-        candidate = test_users[0]
+    with torch.no_grad():
+        for u in test_users:
+            # A. Filter by History Length
+            src_hist = df_src[df_src['user_id_idx'] == u]
+            tgt_hist = df_tgt[df_tgt['user_id_idx'] == u]
             
+            # Criteria: At least 3 source items (so we have context) 
+            # and at least 1 target item (so we have ground truth)
+            if len(src_hist) < 10 or len(tgt_hist) < 1 or len(tgt_hist) > 11:
+                continue
+
+            # B. Generate Prediction
+            # Prepare input
+            char_input = torch.tensor(user_content[u]).float().unsqueeze(0)
+            src_input = torch.zeros((1, 64)) 
+            pred_user_emb = mapper(src_input, char_input)
+            
+            # Calculate Scores
+            scores = torch.matmul(pred_user_emb, all_items_emb.t()).squeeze()
+            
+            # Get Top 15 Recommendations
+            _, top_indices = torch.topk(scores, k=15)
+            top_indices_list = top_indices.tolist()
+            
+            # C. Check for Match
+            # Get actual items this user clicked in Test set
+            ground_truth_ids = tgt_hist['item_id_idx'].values.tolist()
+            
+            # Intersection check
+            match_found = False
+            for gt_id in ground_truth_ids:
+                if gt_id in top_indices_list:
+                    candidate = u
+                    candidate_rank = top_indices_list.index(gt_id) + 1 # 1-based rank
+                    match_found = True
+                    break
+            
+            if match_found:
+                break # Stop searching, we found our star!
+            
+            checked += 1
+            if checked >= search_limit:
+                print(f"Warning: Checked {search_limit} users but didn't find a Top-15 hit. Using last valid user.")
+                candidate = u # Fallback
+                break
+
     if candidate is None:
-        print("No suitable test users found.")
+        print("No suitable candidate found.")
         return
 
-    # Cast to int for lookup
+    # 4. Print Results for the Selected Candidate
     cand_int = int(candidate)
-    
-    # Safety check for user map
-    if cand_int not in user_map:
-        print(f"Error: User Index {cand_int} not found in mapping file.")
-        # Try to print keys to debug
-        # print(list(user_map.keys())[:5])
-        return
+    print(f"\n=== SUCCESS CASE STUDY FOUND! ===")
+    print(f"User ID: {cand_int} (Raw: {user_map[cand_int]})")
+    if candidate_rank > 0:
+        print(f"SUCCESS: Model recommended the Ground Truth item at Rank #{candidate_rank}")
+    else:
+        print("NOTE: This is a fallback user (Ground truth not in Top 15).")
 
-    print(f"Selected User ID: {cand_int} (Raw: {user_map[cand_int]})")
-    
-    # 1. Get Source History
+    # Format Outputs
+    # Source History
     src_items_idx = df_src[df_src['user_id_idx'] == candidate]['item_id_idx'].values
-    # Safely map items
     src_asins = []
-    for i in src_items_idx[:5]:
+    for i in src_items_idx[:10]: # Show top 10 history
         i_int = int(i)
-        if i_int in src_item_map:
-            src_asins.append(src_item_map[i_int])
-        else:
-            src_asins.append(f"Unknown_Item_{i_int}")
-    
-    # 2. Get Target Ground Truth
+        src_asins.append(src_item_map.get(i_int, f"Unknown_{i_int}"))
+        
+    # Target Truth
     tgt_items_idx = df_tgt[df_tgt['user_id_idx'] == candidate]['item_id_idx'].values
     tgt_asins = []
     for i in tgt_items_idx:
         i_int = int(i)
-        if i_int in tgt_item_map:
-            tgt_asins.append(tgt_item_map[i_int])
-    
-    # 3. Get Prediction
-    model_t, mapper = load_models()
-    user_content = np.load(os.path.join(DATA_DIR, 'source_user_content.npy'))
-    
+        tgt_asins.append(tgt_item_map.get(i_int, f"Unknown_{i_int}"))
+
+    # Model Recommendations (Top 10)
+    # We re-run the top-k just to be sure we have the list ready for display
     with torch.no_grad():
         char_input = torch.tensor(user_content[candidate]).float().unsqueeze(0)
         src_input = torch.zeros((1, 64)) 
         pred_user_emb = mapper(src_input, char_input)
-        
-        # Score against all items
-        all_items_emb = model_t.item_embedding.weight
         scores = torch.matmul(pred_user_emb, all_items_emb.t()).squeeze()
-        
-        # Top 10
         _, top_indices = torch.topk(scores, k=10)
         
-        pred_asins = []
-        for idx in top_indices:
-            idx_int = int(idx.item())
-            if idx_int in tgt_item_map:
-                pred_asins.append(tgt_item_map[idx_int])
-            if len(pred_asins) >= 5: 
-                break
-
-    # Output
-    print("\n=== CASE STUDY ===")
-    print(f"User Raw ID: {user_map[cand_int]}")
-    print("\nSOURCE HISTORY (Movies):")
-    print(src_asins)
-    print("\nTARGET GROUND TRUTH (Music):")
-    print(tgt_asins)
-    print("\nPTUPCDR RECOMMENDATIONS:")
-    print(pred_asins)
+    pred_asins = []
+    for idx in top_indices:
+        idx_int = int(idx.item())
+        pred_asins.append(tgt_item_map.get(idx_int, f"Unknown_{idx_int}"))
     
+    src_titles_map = get_product_titles(src_asins, META_SOURCE_FILE)
+    tgt_titles_map = get_product_titles(tgt_asins + pred_asins, META_TARGET_FILE)
+
+    # --- FORMAT OUTPUT ---
+    def fmt(asin_list, title_map):
+        return [f"{title_map.get(a, 'Unknown')} ({a})" for a in asin_list]
+
+    src_display = fmt(src_asins, src_titles_map)
+    tgt_display = fmt(tgt_asins, tgt_titles_map)
+    pred_display = fmt(pred_asins, tgt_titles_map)
+    
+    print("\nSOURCE HISTORY (Movies):")
+    for x in src_display: print(f" - {x}")
+    
+    print("\nTARGET GROUND TRUTH (Music):")
+    for x in tgt_display: print(f" - {x}")
+    
+    print("\nPTUPCDR RECOMMENDATIONS (Top 10):")
+    for i, x in enumerate(pred_display):
+        mark = "  "
+        # Check if this recommendation is in ground truth
+        # We check ASIN match
+        rec_asin = pred_asins[i]
+        if rec_asin in tgt_asins:
+            mark = ">>" # Highlight hits
+        print(f" {mark} {i+1}. {x}")
+    
+    # Save to file
     out_file = os.path.join(BASE_DIR, "reports", "figures", "viz4_case_study.txt")
-    with open(out_file, "w") as f:
-        f.write(f"User: {user_map[cand_int]}\nSource: {src_asins}\nTruth: {tgt_asins}\nPreds: {pred_asins}")
-    print(f"Saved case study to {out_file}")
+    with open(out_file, "w", encoding="utf-8") as f:
+        f.write(f"User: {user_map[cand_int]}\n\n")
+        f.write("SOURCE HISTORY (Movies):\n")
+        for x in src_display: f.write(f" - {x}\n")
+        f.write("\nTARGET GROUND TRUTH (Music):\n")
+        for x in tgt_display: f.write(f" - {x}\n")
+        f.write("\nRECOMMENDATIONS:\n")
+        for x in pred_display: f.write(f" - {x}\n")
+        
+    print(f"\nSaved detailed case study to {out_file}")
+
 
 if __name__ == "__main__":
     viz_latent_space()
