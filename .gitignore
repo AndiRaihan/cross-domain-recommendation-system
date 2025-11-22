@@ -36,7 +36,7 @@ env.bak/
 venv.bak/
 
 # Data files
-data/
+/data/
 *.csv
 *.json
 *.sqlite
