@@ -45,7 +45,7 @@ venv.bak/
 *.hdf5
 
 # Reports
-reports/
+# reports/
 
 # IDE / Editor specific
 .idea/

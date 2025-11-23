@@ -1,0 +1,35 @@
+User: AF46Z4MMO2MD5MNOB4T6VAE6SOMQ
+
+SOURCE HISTORY (Movies):
+ - 4 [VHS] (6300214605)
+ - American Pie - Unrated Edition (Special Edition) [VHS] (0783242808)
+ - House on Haunted Hill (B00003CWRF)
+ - Stir Of Echoes (0784013470)
+ - Man on the Moon (B00003CWTL)
+ - The Toxic Avenger (6304723113)
+ - Scream Trilogy - Boxed Set [DVD] (B00004W20F)
+ - The Nightmare on Elm Street Collection (New Line Platinum Series) (0780626966)
+ - Evil Dead (Special Edition) [DVD] (B00000G3Q4)
+ - Evil Dead II (Limited Edition Tin) (B00004U2A1)
+
+TARGET GROUND TRUTH (Music):
+ - Stan & Judy's Kid       Explicit Lyrics (B00001QENT)
+ - What The Hell Happened To Me?       Explicit Lyrics (B000002N4N)
+ - They're All Gonna Laugh at You       Explicit Lyrics (B000002MMG)
+ - Dragontown (B00005NVJI)
+ - Brutal Planet (B00004TLYI)
+ - The Sinister Urge       Explicit Lyrics (B00005Q6IJ)
+ - Hellbilly Deluxe       Explicit Lyrics (B00000AEFF)
+ - Cereal Killer Soundtrack (B00000098W)
+
+RECOMMENDATIONS:
+ - Partners (B00MIA0KGY)
+ - Stars Are Blind (B000G04RLM)
+ - 25 (B016WW10SA)
+ - The Art of Rebellion (B00000286Z)
+ - Godzilla: The Album 1998 Film (B000006O86)
+ - Scumdogs of the Universe       Explicit Lyrics (B000007T4Y)
+ - Metallica - Cliff 'Em All [VHS] (6302372666)
+ - Bill & Ted's Bogus Journey 1991 Film (B000001Y59)
+ - In the End 2 (B00005ONPB)
+ - They're All Gonna Laugh at You       Explicit Lyrics (B000002MMG)
