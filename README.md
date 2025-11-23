@@ -36,7 +36,7 @@ The system implements and compares three models:
 
 ## Data
 
-The project uses the **Amazon Review Data** (2023 version).
+The project uses the [**Amazon Review Data** (2023 version)](https://amazon-reviews-2023.github.io/main.html).
 
 - **Source Domain**: Movies and TV
 - **Target Domain**: CDs and Vinyl
@@ -53,7 +53,20 @@ Data is expected to be in `data/raw/` and processed data is saved to `data/proce
 
 The project uses a central CLI entry point `main.py`.
 
-### 1. Train Models
+### 1. Data Processing
+
+To run the full data processing pipeline (Preprocessing -> Splitting -> Feature Engineering -> Slicing -> User Profiling):
+
+```bash
+python main.py process-data \
+    --source "data/raw/Movies_and_TV.jsonl" \
+    --target "data/raw/CDs_and_Vinyl.jsonl" \
+    --meta-source "data/raw/meta_Movies_and_TV.jsonl" \
+    --meta-target "data/raw/meta_CDs_and_Vinyl.jsonl" \
+    --output "data/processed"
+```
+
+### 2. Train Models
 
 Train the CMF Baseline:
 
@@ -73,7 +86,7 @@ Train the PTUPCDR Model (Full Pipeline):
 python main.py train-ptupcdr
 ```
 
-### 2. Visualization & Analysis
+### 3. Visualization & Analysis
 
 Generate visualizations (Latent Space, Case Studies, Performance Comparison):
 
