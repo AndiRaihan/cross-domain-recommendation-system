@@ -35,7 +35,6 @@ def build_adjacency_matrix(data_dir, filename, num_users, num_items):
     # 3. Normalize (D^-0.5 * A * D^-0.5)
     rowsum = np.array(adj.sum(1))
     
-    # Fix Divide by Zero warning:
     d_inv_sqrt = np.power(rowsum, -0.5).flatten()
     d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
     d_mat_inv_sqrt = sp.diags(d_inv_sqrt)

@@ -22,11 +22,9 @@ class CDDataset(Dataset):
         self.is_training = is_training
         self.mat = set(zip(self.users, self.items))
 
-        # --- OPTIMIZED POPULARITY SAMPLING ---
         if self.is_training:
             print("   [Dataset] Pre-computing Popularity Pool...")
             
-            # 1. Count frequencies
             item_counts = self.df['item_id_idx'].value_counts()
             
             # 2. Laplace Smoothing & Mapping
@@ -39,13 +37,8 @@ class CDDataset(Dataset):
             pow_counts = np.power(counts, 0.75)
             probs = pow_counts / pow_counts.sum()
             
-            # 4. THE FIX: Generate a massive pool ONCE
-            # We create a pool of 10 million weighted samples. 
-            # Sampling from this pool uniformly is mathematically equivalent to 
-            # sampling from the distribution, but instant.
             POOL_SIZE = 10_000_000 
             
-            # This line takes ~2-5 seconds to run once on startup
             self.pop_pool = np.random.choice(
                 np.arange(num_items), 
                 size=POOL_SIZE, 
@@ -81,7 +74,6 @@ class CDDataset(Dataset):
             negatives = []
             while len(negatives) < self.num_negatives:
                 # FAST LOOKUP: Just pick a random index from the pre-weighted pool
-                # np.random.randint is extremely fast
                 pool_idx = np.random.randint(0, self.pool_size)
                 neg = self.pop_pool[pool_idx]
                 
