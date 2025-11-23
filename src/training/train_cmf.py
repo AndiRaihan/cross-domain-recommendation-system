@@ -22,10 +22,11 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "reports", "cmf_baseline")
 
 BATCH_SIZE = 4096
 LR = 0.001
-EPOCHS = 30 
+EPOCHS = 30
 EMBED_DIM = 32
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-SOURCE_WEIGHT = 0.5 # How much we care about Source Loss (Alpha)
+SOURCE_WEIGHT = 0.5  # How much we care about Source Loss (Alpha)
+
 
 def run():
     """
@@ -46,7 +47,7 @@ def run():
     print(f"--- Running CMF (Cross-Domain MF) Baseline on {DEVICE} ---")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # 1. Get Dimensions
+    # Get Dimensions
     with open(os.path.join(DATA_DIR, 'user_mapping.json')) as f:
         num_users = len(json.load(f)) + 1
     with open(os.path.join(DATA_DIR, 'source_item_mapping.json')) as f:
@@ -57,7 +58,7 @@ def run():
     print(
         f"Users: {num_users}, Source Items: {num_src_items}, Target Items: {num_tgt_items}")
 
-    # 2. Load Data (WE NEED BOTH SOURCE AND TARGET TRAIN)
+    # Load Data
     print("Loading Datasets...")
 
     # Primary Loader (Target)
@@ -81,7 +82,7 @@ def run():
         batch_size=128, shuffle=False
     )
 
-    # 3. Init Model
+    # Init Model
     model = CMF(num_users, num_src_items, num_tgt_items,
                 embed_dim=EMBED_DIM).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR)
@@ -94,7 +95,7 @@ def run():
     }
     best_hr = 0.0
 
-    # 4. Train Loop
+    # Train Loop
     # We make the Source loader an iterator so we can cycle through it
     src_iter = iter(src_train_loader)
 
@@ -161,7 +162,7 @@ def run():
 
         avg_loss = total_loss / len(tgt_train_loader)
 
-        # 5. Evaluate per Epoch (Only on Target Valid)
+        # Evaluate per Epoch (Only on Target Valid)
         metrics = evaluate_model(model, valid_loader, device=DEVICE)
 
         print(f"Epoch {epoch+1}/{EPOCHS} | Loss: {avg_loss:.4f} | "
@@ -181,11 +182,11 @@ def run():
                 OUTPUT_DIR, "best_cmf_model.pth"))
             print("   -> New Best Model Saved!")
 
-    # 6. Save Metrics
+    # Save Metrics
     with open(os.path.join(OUTPUT_DIR, "training_history.json"), "w") as f:
         json.dump(history, f, indent=4)
 
-    # 7. Final Cold-Start Evaluation
+    # Final Cold-Start Evaluation
     print("\n--- Final Evaluation on Cold-Start Test Set ---")
     model.load_state_dict(torch.load(
         os.path.join(OUTPUT_DIR, "best_cmf_model.pth")))

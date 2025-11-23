@@ -23,7 +23,6 @@ class CMF(nn.Module):
         super(CMF, self).__init__()
 
         # SHARED User Embeddings (The Bridge)
-        # This matrix is updated by gradients from BOTH domains
         self.user_embedding = nn.Embedding(num_users, embed_dim)
 
         # Domain-Specific Item Embeddings
@@ -37,7 +36,6 @@ class CMF(nn.Module):
         """
         Initialize embeddings with normal distribution.
         """
-        # Standard Normal initialization often works better for MF than Xavier
         nn.init.normal_(self.user_embedding.weight, std=0.01)
         nn.init.normal_(self.src_item_embedding.weight, std=0.01)
         nn.init.normal_(self.tgt_item_embedding.weight, std=0.01)
@@ -61,7 +59,6 @@ class CMF(nn.Module):
         else:
             item_vec = self.src_item_embedding(item_indices)
 
-        # Dot Product
         dot = (user_vec * item_vec).sum(dim=1)
 
         return self.sigmoid(dot)

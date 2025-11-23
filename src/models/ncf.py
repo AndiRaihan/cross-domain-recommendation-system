@@ -22,7 +22,7 @@ class NCF(nn.Module):
         """
         super(NCF, self).__init__()
 
-        # GMF Part (Generalized Matrix Factorization)
+        # GMF Part
         self.gmf_user_embedding = nn.Embedding(num_users, embed_dim)
         self.gmf_item_embedding = nn.Embedding(num_items, embed_dim)
 
@@ -41,7 +41,6 @@ class NCF(nn.Module):
         self.mlp_layers = nn.Sequential(*mlp_modules)
 
         # Final Prediction Layer
-        # Concatenates GMF (embed_dim) + MLP (last_layer_size)
         predict_size = embed_dim + layers[-1]
         self.predict_layer = nn.Linear(predict_size, 1)
         self.sigmoid = nn.Sigmoid()
@@ -52,7 +51,6 @@ class NCF(nn.Module):
         """
         Initialize weights with Xavier/He and Normal distributions.
         """
-        # Initialize with Xavier/He
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
@@ -73,7 +71,7 @@ class NCF(nn.Module):
         # GMF
         gmf_u = self.gmf_user_embedding(user_indices)
         gmf_i = self.gmf_item_embedding(item_indices)
-        gmf_vector = gmf_u * gmf_i  # Element-wise product
+        gmf_vector = gmf_u * gmf_i
 
         # MLP
         mlp_u = self.mlp_user_embedding(user_indices)

@@ -18,18 +18,15 @@ def get_metrics(rank_list: List[int], top_k: int = 10) -> Dict[str, float]:
     # Cut off at K
     r = rank_list[:top_k]
 
-    # Variables
     is_hit = 1 in r
 
     # 1. Recall@K (Equivalent to Hit Ratio in this setup)
     recall = 1.0 if is_hit else 0.0
 
     # 2. Precision@K
-    # Formula: (Number of Hits) / K
     precision = sum(r) / top_k
 
     # 3. F1-Score@K
-    # Formula: 2 * (P * R) / (P + R)
     if (precision + recall) > 0:
         f1 = 2 * (precision * recall) / (precision + recall)
     else:
@@ -76,7 +73,6 @@ def evaluate_model(model: torch.nn.Module, test_loader: torch.utils.data.DataLoa
     """
     model.eval()
 
-    # Accumulators
     metrics_sum = {
         "precision": [], "recall": [], "f1": [], "ndcg": [], "map": []
     }
@@ -94,15 +90,12 @@ def evaluate_model(model: torch.nn.Module, test_loader: torch.utils.data.DataLoa
             # Repeat user for all items
             users_expanded = user.unsqueeze(1).repeat(1, all_items.size(1))
 
-            # Flatten
             flat_users = users_expanded.view(-1)
             flat_items = all_items.view(-1)
 
-            # Predict
             predictions = model(flat_users, flat_items)
             scores = predictions.view(-1, 101)
 
-            # Sort descending
             _, indices = torch.topk(scores, k=top_k)
             indices = indices.cpu().numpy()
 
@@ -111,13 +104,11 @@ def evaluate_model(model: torch.nn.Module, test_loader: torch.utils.data.DataLoa
                 # Because we concatenated [pos, negs], the pos item is always at index 0 in the input
                 rank_list = [1 if i == 0 else 0 for i in rank_indices]
 
-                # Calculate metrics
                 m = get_metrics(rank_list, top_k)
 
                 for k, v in m.items():
                     metrics_sum[k].append(v)
 
-    # Average out
     final_metrics = {k: np.mean(v) for k, v in metrics_sum.items()}
 
     return final_metrics

@@ -207,7 +207,7 @@ def generate_case_study():
     """
     print("Generating Case Study (Searching for a Hit)...")
 
-    # 1. Load Data & Mappings
+    # Load Data & Mappings
     with open(os.path.join(DATA_DIR, 'user_mapping.json')) as f:
         user_map = {int(k): v for k, v in json.load(f).items()}
     with open(os.path.join(DATA_DIR, 'source_item_mapping.json')) as f:
@@ -219,26 +219,25 @@ def generate_case_study():
     df_tgt = pd.read_csv(os.path.join(DATA_DIR, 'target_test.csv'))
     user_content = np.load(os.path.join(DATA_DIR, 'source_user_content.npy'))
 
-    # 2. Load Model ONCE (Before loop)
+    # Load Model ONCE (Before loop)
     print("Loading models for search...")
     model_t, mapper = load_models()
-    # Ensure evaluation mode
     model_t.eval()
     mapper.eval()
     all_items_emb = model_t.item_embedding.weight
 
-    # 3. Search for a "Success" Candidate
+    # Search for a "Success" Candidate
     test_users = df_tgt['user_id_idx'].unique()
     candidate = None
     candidate_rank = -1
 
-    # Check up to 100 users to find a good match (usually finds one instantly)
+    # Check up to 200 users to find a good match
     search_limit = 200
     checked = 0
 
     with torch.no_grad():
         for u in test_users:
-            # A. Filter by History Length
+            # Filter by History Length
             src_hist = df_src[df_src['user_id_idx'] == u]
             tgt_hist = df_tgt[df_tgt['user_id_idx'] == u]
 
@@ -247,20 +246,19 @@ def generate_case_study():
             if len(src_hist) < 10 or len(tgt_hist) < 1 or len(tgt_hist) > 11:
                 continue
 
-            # B. Generate Prediction
+            # Generate Prediction
             # Prepare input
             char_input = torch.tensor(user_content[u]).float().unsqueeze(0)
             src_input = torch.zeros((1, 64))
             pred_user_emb = mapper(src_input, char_input)
 
-            # Calculate Scores
             scores = torch.matmul(pred_user_emb, all_items_emb.t()).squeeze()
 
             # Get Top 15 Recommendations
             _, top_indices = torch.topk(scores, k=15)
             top_indices_list = top_indices.tolist()
 
-            # C. Check for Match
+            # Check for Match
             # Get actual items this user clicked in Test set
             ground_truth_ids = tgt_hist['item_id_idx'].values.tolist()
 
@@ -275,7 +273,7 @@ def generate_case_study():
                     break
 
             if match_found:
-                break  # Stop searching, we found our star!
+                break 
 
             checked += 1
             if checked >= search_limit:
@@ -288,7 +286,7 @@ def generate_case_study():
         print("No suitable candidate found.")
         return
 
-    # 4. Print Results for the Selected Candidate
+    # Print Results for the Selected Candidate
     cand_int = int(candidate)
     print(f"\n=== SUCCESS CASE STUDY FOUND! ===")
     print(f"User ID: {cand_int} (Raw: {user_map[cand_int]})")

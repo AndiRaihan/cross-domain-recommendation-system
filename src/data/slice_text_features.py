@@ -35,12 +35,10 @@ class FeatureSlicer:
         print(f"--- Slicing {filename} ---")
 
         # Load with mmap so we don't explode RAM
-        # We only read the parts we need
         data = np.load(input_path, mmap_mode='r')
         print(f"Original Shape: {data.shape}")
 
-        # MRL Magic: Just take the first N columns!
-        # Qwen guarantees these are the most important ones.
+        # MRL Magic: Just take the first N columns
         sliced_data = data[:, :self.target_dim]
 
         sliced_data = normalize(sliced_data, norm='l2', axis=1)

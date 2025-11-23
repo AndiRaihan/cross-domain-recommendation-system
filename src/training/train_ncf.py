@@ -24,9 +24,10 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "reports", "baseline")
 
 BATCH_SIZE = 4096
 LR = 0.001
-EPOCHS = 30 # Increased slightly to see curves
+EPOCHS = 30  # Increased slightly to see curves
 EMBED_DIM = 32
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 
 def run():
     """
@@ -44,13 +45,13 @@ def run():
     print(f"--- Running NCF Baseline on {DEVICE} ---")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # 1. Get Dimensions
+    # Get Dimensions
     with open(os.path.join(DATA_DIR, 'user_mapping.json')) as f:
         num_users = len(json.load(f)) + 1
     with open(os.path.join(DATA_DIR, 'target_item_mapping.json')) as f:
         num_items = len(json.load(f)) + 1
 
-    # 2. Load Data
+    # Load Data
     print("Loading Datasets...")
     train_loader = DataLoader(
         CDDataset(os.path.join(DATA_DIR, 'target_train.csv'),
@@ -64,7 +65,7 @@ def run():
         batch_size=128, shuffle=False
     )
 
-    # 3. Init Model
+    # Init Model
     model = NCF(num_users, num_items, embed_dim=EMBED_DIM).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-4)
     criterion = torch.nn.BCELoss()
@@ -83,7 +84,7 @@ def run():
     print(f"Train Dataset Size: {len(train_loader.dataset)}")
     print(f"Train Loader Batches: {len(train_loader)}")
 
-    # 4. Train Loop
+    # Train Loop
     start_time = time.time()
     for epoch in range(EPOCHS):
         model.train()
@@ -97,11 +98,11 @@ def run():
             users, pos_items, neg_items = users.to(
                 DEVICE), pos_items.to(DEVICE), neg_items.to(DEVICE)
 
-            # 1. Positive Loss (unchanged)
+            # Positive Loss
             pos_preds = model(users, pos_items)
             pos_loss = criterion(pos_preds, torch.ones_like(pos_preds))
 
-            # 2. Negative Loss
+            # Negative Loss
             neg_items_flat = neg_items.view(-1)
 
             # Repeat users: [u1, u2] -> [u1, u1, u1, u1, u2, u2, u2, u2]
@@ -111,7 +112,7 @@ def run():
             neg_preds = model(users_expanded, neg_items_flat)
             neg_loss = criterion(neg_preds, torch.zeros_like(neg_preds))
 
-            # 3. Combine
+            # Combine
             loss = pos_loss + neg_loss
 
             optimizer.zero_grad()
@@ -126,7 +127,7 @@ def run():
 
         avg_loss = total_loss / len(train_loader)
 
-        # 5. Evaluate per Epoch
+        # Evaluate per Epoch
         metrics = evaluate_model(model, valid_loader, device=DEVICE)
 
         print(f"Epoch {epoch+1}/{EPOCHS} | Loss: {avg_loss:.4f} | "
@@ -148,11 +149,10 @@ def run():
                 OUTPUT_DIR, "best_ncf_model.pth"))
             print("   -> New Best Model Saved!")
 
-    # 6. Save Metrics
     with open(os.path.join(OUTPUT_DIR, "training_history.json"), "w") as f:
         json.dump(history, f, indent=4)
 
-    # 7. Final Cold-Start Evaluation (Load Best Model First)
+    # Final Cold-Start Evaluation (Load Best Model First)
     print("\n--- Final Evaluation on Cold-Start Test Set ---")
     model.load_state_dict(torch.load(
         os.path.join(OUTPUT_DIR, "best_ncf_model.pth")))
