@@ -7,7 +7,18 @@ import numpy as np
 from tqdm import tqdm
 
 class Preprocessor:
-    def __init__(self, source_path, target_path, save_dir='./data'):
+    """
+    Handles data loading, cleaning, preprocessing, and alignment for cross-domain recommendation.
+    """
+    def __init__(self, source_path: str, target_path: str, save_dir: str = './data'):
+        """
+        Initialize the Preprocessor.
+
+        Args:
+            source_path (str): Path to the source domain JSONL file.
+            target_path (str): Path to the target domain JSONL file.
+            save_dir (str): Directory to save processed data.
+        """
         self.source_path = source_path
         self.target_path = target_path
         self.save_dir = save_dir
@@ -15,11 +26,20 @@ class Preprocessor:
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
             
-    def stream_and_filter_columns(self, file_path, domain_name):
+    def stream_and_filter_columns(self, file_path: str, domain_name: str) -> pd.DataFrame:
         """
-        Reads JSONL in chunks.
+        Reads JSONL in chunks, filters columns, and performs initial cleaning.
+
         1. Drops heavy text/image columns immediately.
         2. Converts IDs to Categories (Integers) to save RAM.
+        3. Drops duplicates.
+
+        Args:
+            file_path (str): Path to the JSONL file.
+            domain_name (str): Name of the domain (for logging).
+
+        Returns:
+            pd.DataFrame: Processed dataframe.
         """
         print(f"[{domain_name}] Streaming data from {file_path}...")
         
@@ -64,11 +84,17 @@ class Preprocessor:
         print(f"[{domain_name}] Initial Load: {len(df)} rows.")
         return df
 
-    def recursive_k_core(self, df, k, domain_name):
+    def recursive_k_core(self, df: pd.DataFrame, k: int, domain_name: str) -> pd.DataFrame:
         """
-        Iterative filtering.
-        Note: This still requires the ID-Structure to fit in RAM. 
-        Since we dropped 'text', millions of rows should fit in ~2GB RAM.
+        Iteratively filters users and items with fewer than k interactions.
+
+        Args:
+            df (pd.DataFrame): Input dataframe.
+            k (int): Minimum number of interactions.
+            domain_name (str): Name of the domain (for logging).
+
+        Returns:
+            pd.DataFrame: Filtered dataframe.
         """
         print(f"[{domain_name}] Starting {k}-core filtering...")
         iteration = 0
@@ -96,9 +122,17 @@ class Preprocessor:
         print(f"[{domain_name}] Converged. Final size: {len(df)}")
         return df
 
-    def align_and_map(self, df_source, df_target):
+    def align_and_map(self, df_source: pd.DataFrame, df_target: pd.DataFrame):
         """
         Creates the RecBole compatible atomic files and mappings.
+        Ensures global user mapping and local item mappings.
+
+        Args:
+            df_source (pd.DataFrame): Source domain dataframe.
+            df_target (pd.DataFrame): Target domain dataframe.
+
+        Returns:
+            tuple: (df_source, df_target, user_map, item_map_s, item_map_t)
         """
         print("\n[Alignment] Mapping IDs...")
         
@@ -133,10 +167,14 @@ class Preprocessor:
         
         return df_source, df_target, user_map, item_map_s, item_map_t
     
-    def generate_statistics(self, df_s, df_t):
+    def generate_statistics(self, df_s: pd.DataFrame, df_t: pd.DataFrame):
         """
         Calculates and saves detailed statistics for the report.
         Essential for explaining Data Sparsity and Overlap.
+
+        Args:
+            df_s (pd.DataFrame): Source domain dataframe.
+            df_t (pd.DataFrame): Target domain dataframe.
         """
         print("\n[Statistics] Calculating dataset metrics...")
         
@@ -214,9 +252,15 @@ class Preprocessor:
             
         print("[Statistics] Report saved to dataset_statistics.txt")
 
-    def export_data(self, df, name, folder, implicit_threshold=0):
+    def export_data(self, df: pd.DataFrame, name: str, folder: str, implicit_threshold: int = 0):
         """
-        FIXED: Handles Implicit Feedback and RecBole String Requirements.
+        Exports the processed data to CSV and RecBole compatible formats.
+
+        Args:
+            df (pd.DataFrame): Dataframe to export.
+            name (str): Name of the dataset (e.g., 'source_domain').
+            folder (str): Output folder.
+            implicit_threshold (int): Threshold for implicit feedback.
         """
         # --- IMPLICIT FEEDBACK HANDLING ---
         # If rating >= threshold, keep it. Treat as 1 (positive).
@@ -254,9 +298,14 @@ class Preprocessor:
         recbole_df.to_csv(out_inter, sep='\t', index=False)
         print(f"   Exported {name} to {out_inter}")
         
-    def save_mappings(self, user_map, item_map_source, item_map_target):
+    def save_mappings(self, user_map: dict, item_map_source: dict, item_map_target: dict):
         """
         Saves the mappings so we can link Integers back to Raw ASINs/Text/Images later.
+
+        Args:
+            user_map (dict): User ID mapping.
+            item_map_source (dict): Source item ID mapping.
+            item_map_target (dict): Target item ID mapping.
         """
         print("[Saving] Saving ID Mappings to JSON...")
         
@@ -281,6 +330,9 @@ class Preprocessor:
             json.dump(reverse_item_t, f)
 
     def process(self):
+        """
+        Main execution flow for data processing.
+        """
         # 1. Load
         df_s = self.stream_and_filter_columns(self.source_path, "Source")
         df_t = self.stream_and_filter_columns(self.target_path, "Target")

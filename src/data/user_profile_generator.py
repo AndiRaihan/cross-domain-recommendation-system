@@ -4,7 +4,14 @@ import os
 import json
 from tqdm import tqdm
 
-def generate_user_profiles(data_dir, domain_prefix):
+def generate_user_profiles(data_dir: str, domain_prefix: str):
+    """
+    Generates user content profiles by aggregating item embeddings.
+
+    Args:
+        data_dir (str): Directory containing the data files.
+        domain_prefix (str): Prefix for the domain (e.g., 'source' or 'target').
+    """
     print(f"--- Generating User Content Profiles for {domain_prefix} ---")
     
     # 1. Load Interactions (Training Data Only)

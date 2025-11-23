@@ -1,62 +1,120 @@
 # Cross-Domain Recommendation System
 
 ## Objective
-This project implements a deep learning-based cross-domain recommendation system. It includes a baseline model for comparison and optionally incorporates reinforcement learning to enhance user interaction.
+
+This project implements a deep learning-based cross-domain recommendation system, specifically designed to transfer user preferences from a source domain (e.g., Movies) to a target domain (e.g., Music). It aims to solve the cold-start problem where users have little to no interaction history in the target domain.
+
+The system implements and compares three models:
+
+1. **CMF (Cross-Domain Matrix Factorization)**: A linear baseline model.
+2. **NCF (Neural Collaborative Filtering)**: A deep learning baseline model (Target-only).
+3. **PTUPCDR (Personalized Transfer of User Preferences)**: A state-of-the-art deep learning model that learns a mapping function to transfer user embeddings from source to target.
 
 ## Table of Contents
+
 - [Installation](#installation)
 - [Data](#data)
 - [Usage](#usage)
 - [Model Architecture](#model-architecture)
 - [Evaluation](#evaluation)
 - [Results](#results)
-- [Future Work](#future-work)
 
 ## Installation
+
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/cross-domain-recommendation-system.git
-   ```
+
+    ```bash
+    git clone <repository-url>
+    cd cross-domain-recommendation-system
+    ```
+
 2. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+
+    ```bash
+    pip install -r requirements.txt
+    ```
 
 ## Data
-The dataset used is [mention the dataset, e.g., MovieLens, Amazon Reviews]. It has been preprocessed to handle missing values and normalized for the models.
 
-- **Raw Data:** `data/raw/`
-- **Processed Data:** `data/processed/`
+The project uses the **Amazon Review Data** (2023 version).
+
+- **Source Domain**: Movies and TV
+- **Target Domain**: CDs and Vinyl
+
+The data pipeline handles:
+
+- **Preprocessing**: Filtering users/items, k-core filtering, and splitting into train/validation/test sets.
+- **Feature Engineering**: Generating text embeddings for items using `SentenceTransformer`.
+- **User Profiling**: Creating user content profiles based on their interaction history.
+
+Data is expected to be in `data/raw/` and processed data is saved to `data/processed/`.
 
 ## Usage
-To train the models, run the following command:
+
+The project uses a central CLI entry point `main.py`.
+
+### 1. Train Models
+
+Train the CMF Baseline:
+
 ```bash
-python src/training/train.py
+python main.py train-cmf
 ```
 
-To evaluate the models, run:
+Train the NCF Baseline:
+
 ```bash
-python src/evaluation/evaluate.py
+python main.py train-ncf
 ```
+
+Train the PTUPCDR Model (Full Pipeline):
+
+```bash
+python main.py train-ptupcdr
+```
+
+### 2. Visualization & Analysis
+
+Generate visualizations (Latent Space, Case Studies, Performance Comparison):
+
+```bash
+python main.py visualize --type all
+```
+
+Available types: `latent`, `case-study`, `ncf-failure`, `comparison`, `all`.
 
 ## Model Architecture
-This section describes the architecture of the implemented models.
 
-### Baseline Model
-[Describe the baseline model, e.g., Matrix Factorization, Collaborative Filtering]
+### 1. CMF (Cross-Domain Matrix Factorization)
 
-### Deep Learning Model
-[Describe the deep learning model, e.g., Neural Collaborative Filtering, GNN]
+A matrix factorization approach that jointly factorizes the rating matrices of both domains, sharing user embeddings to enable knowledge transfer.
+
+### 2. NCF (Neural Collaborative Filtering)
+
+A neural network-based collaborative filtering model that uses a multi-layer perceptron (MLP) to learn non-linear interactions between users and items. This baseline is trained only on the target domain to demonstrate the cold-start problem.
+
+### 3. PTUPCDR (Personalized Transfer of User Preferences)
+
+A meta-learning based approach. It consists of:
+
+- **Source Encoder**: A LightGCN model trained on the source domain.
+- **Target Encoder**: A LightGCN model trained on the target domain.
+- **Meta-Network**: A mapping network that learns to transform source user embeddings (and content profiles) into target user embeddings, effectively "generating" a warm-start embedding for cold-start users.
 
 ## Evaluation
-The models are evaluated using the following metrics:
-- Precision
-- Recall
-- F1-score
-- Mean Average Precision (MAP)
+
+Models are evaluated using **Leave-One-Out** protocol on the test set.
+Metrics include:
+
+- **Recall@10** (Hit Ratio)
+- **NDCG@10** (Normalized Discounted Cumulative Gain)
+- **MAP** (Mean Average Precision)
 
 ## Results
-[Present the evaluation results, including a comparison between the baseline and deep learning models. Include visualizations from the `reports/figures` directory.]
 
-## Future Work
-[Discuss potential improvements and future directions for the project.]
+Evaluation results and training history are saved in the `reports/` directory.
+
+- `reports/baseline/`: NCF results.
+- `reports/cmf_baseline/`: CMF results.
+- `reports/ptupcdr_model/`: PTUPCDR results.
+- `reports/figures/`: Generated plots and case studies.
