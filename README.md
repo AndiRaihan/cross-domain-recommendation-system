@@ -24,7 +24,7 @@ The system implements and compares three models:
 1. Clone the repository:
 
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/AndiRaihan/cross-domain-recommendation-system
     cd cross-domain-recommendation-system
     ```
 

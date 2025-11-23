@@ -46,6 +46,7 @@ venv.bak/
 
 # Reports
 # reports/
+*.pth
 
 # IDE / Editor specific
 .idea/
