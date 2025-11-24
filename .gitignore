@@ -39,6 +39,7 @@ venv.bak/
 /data/
 *.csv
 *.json
+!reports/**/*.json
 *.sqlite
 *.db
 *.pkl
